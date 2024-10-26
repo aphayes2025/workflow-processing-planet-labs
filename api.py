@@ -40,7 +40,7 @@ def getPolygons(folderPath):
 
 
 # function definition for searching the stats of each image site 
-def search_params_stats(coordinates, StartTime):
+def search_stats_params(coordinates, StartTime):
     
     return {
     "item_types":[
@@ -259,95 +259,89 @@ def handle_pagination(data_dict, image_ids):
 
 
 if __name__ == "__main__":
-    # Loading in the API Key
+    # using .env to load in api key
     load_dotenv()
     PLANET_API_KEY = os.getenv('API_KEY')
 
-    # getting polygon
-    dir_path = '/Users/aidanhayes/Desktop/cems-reu-summer/PlanetImageryAOIs'
+    # obtaining path to where AOIs are stored, to get polygins
+    dir_path = os.getenv('DIR_PATH')
     os.chdir(dir_path)
     polygons = getPolygons(dir_path)
 
-    # getting authorization and making sure planet labs connection is good 
+    # making sure connection to planet labs is working
     BASE_URL = 'https://api.planet.com/tasking/v2/orders/'
     auth = HTTPBasicAuth(PLANET_API_KEY, '')
     res = requests.get(url=BASE_URL, auth=auth)
     assert res.status_code == 200
 
-    # Stat Search up API Call
-
+    # setting endpoint and headers for api call 
     SEARCH_ENDPOINT = 'https://api.planet.com/data/v1/stats'
     headers = {
     'Authorization': f'api-key {PLANET_API_KEY}',
     'Content-Type': 'application/json'
     }
 
-    # setting vars
-    i = 0
-    StartTime = '2018-01-01T00:00:00Z'
-
-    # create dictionary to check when ordering that it is same amount of imagery
+    # Create a dictionary to store the total imagery counts and start_time
+    START_TIME = '2018-01-01T00:00:00Z'
     count_imagery_dict = {}
-    # looping through keys to search ups API totals images of each site
-    for key in polygons.keys():
-        geojson_geometry = polygons[key]
+
+    # Loop through keys to search UPS API totals images of each site
+    for key, geojson_geometry in polygons.items():
         coordinates = [list(coord) for coord in geojson_geometry]
-        search_parameters = search_params_stats(coordinates, StartTime)
-        i += 1
+        search_parameters = search_stats_params(coordinates, START_TIME)
+
         response = requests.post(SEARCH_ENDPOINT, headers=headers, data=json.dumps(search_parameters))
-        data_dict = json.loads(response.text)
-        total = 0
-        for lst in data_dict['buckets']:
-            total += lst['count']
+        data_dict = response.json()  # Directly use response.json() for parsing
+
+        total = sum(bucket['count'] for bucket in data_dict['buckets'])
         count_imagery_dict[key] = total
+
         print(f'{key} site total images: {total}')
     
-    ui = str(input("Do these sites and imagery look right? ENTER (n) to stop and anything else to continue. Enter here: "))
-    if ui.lower() == 'n':
+    # verifying the images numbers look right 
+    user_input = str(input("Do these sites and imagery look right? ENTER (n) to stop and anything else to continue. Enter here: "))
+    if user_input.lower() == 'n':
         exit()
 
     # To grab the image IDs of each site
     SEARCH_ENDPOINT = 'https://api.planet.com/data/v1/quick-search'
+    ORDER_ENDPOINT = 'https://api.planet.com/compute/ops/orders/v2'
     image_ids = []
-    downloaded = [] # can copy and paste output.txt into here
+    downloaded = [] 
 
-    
+    # figuring out if user wants a output.txt of 
     write_keys_input = str(input("Would you like a file named 'output.txt' to be written containing all keys"
-                                 "that were downloaded? enter (y) to have this done. Enter Here: "))
-    if write_keys_input.lower() == 'y':
-        keys_output = True
-
+                                 " that were downloaded? enter (y) to have this done. Enter Here: "))
+    keys_output = write_keys_input.lower() == 'y'
     if keys_output:
         f = open("output.txt", "w")
 
-    for curr_key in polygons.keys():
-        SEARCH_ENDPOINT = 'https://api.planet.com/data/v1/quick-search'
-
+    for curr_key, geojson_geometry in polygons.items():
         if curr_key in downloaded:
             print(f"Already downloaded: {curr_key}")
             continue
-        
-        image_ids = [] # reset list of images everytime there is a new key 
-        geojson_geometry = polygons[curr_key]
+        downloaded.append(curr_key)
+
+        # Reset list of images for each new key
         coordinates = [list(coord) for coord in geojson_geometry]
-        search_parameters = search_params(coordinates, StartTime)
+        search_parameters = search_params(coordinates, START_TIME)
+
+        # Request for image IDs
         response = requests.post(SEARCH_ENDPOINT, headers=headers, data=json.dumps(search_parameters))
-        data_dict = json.loads(response.text)
-        image_ids = process_response(data_dict, image_ids)
+        data_dict = response.json()  # Use response.json() for better performance
+        image_ids = process_response(data_dict, [])
         image_ids = handle_pagination(data_dict, image_ids)
         print(f"Total image IDs retrieved: {len(image_ids)}")
         assert count_imagery_dict[curr_key] == len(image_ids)
-        image_ids.sort() # sorting so second image order has mostly 2024
-        first_image_order = image_ids[:500]
-        second_image_order = image_ids[500:]
-        order_name = curr_key + '-high-cloud-cover-1'
 
-        downloaded.append(order_name)
+        # Sort image IDs
+        image_ids.sort()  
+        first_image_order, second_image_order = image_ids[:500], image_ids[500:]
+        order_name = f'{curr_key}-test-1'
 
         # making first order
-        SEARCH_ENDPOINT = 'https://api.planet.com/compute/ops/orders/v2'
-        search_parameters = order_params(coordinates=coordinates, order_name=order_name, images=first_image_order)
-        response = requests.post(SEARCH_ENDPOINT, headers=headers, data=json.dumps(search_parameters))
+        order_parameters = order_params(coordinates=coordinates, order_name=order_name, images=first_image_order)
+        response = requests.post(ORDER_ENDPOINT, headers=headers, data=json.dumps(order_parameters))
         if response.status_code == 202:
              print(f"Request was successful. Currently downloading: {order_name}")
         else:
@@ -358,10 +352,9 @@ if __name__ == "__main__":
 
         # if necessary make second order
         if len(image_ids) > 500:
-            order_name = curr_key + '-high-cloud-cover-2'
-            downloaded.append(order_name)
-            search_parameters = order_params(coordinates=coordinates, order_name=order_name, images=second_image_order)
-            response = requests.post(SEARCH_ENDPOINT, headers=headers, data=json.dumps(search_parameters))
+            order_name = f'{curr_key}-test-2'
+            order_parameters = order_params(coordinates=coordinates, order_name=order_name, images=second_image_order)
+            response = requests.post(ORDER_ENDPOINT, headers=headers, data=json.dumps(order_parameters))
             if response.status_code == 202:
                 print(f"Request was successful. Currently downloading: {order_name}")
             else:
