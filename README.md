@@ -4,7 +4,7 @@ Showcasing a workflow consisting of multiple python scripts to help download ima
 
 ## Authors
 
-The following code was created by [Aidan Hayes](https://github.com/aphayes2025) and [Harrison Myers](). 
+The following code was created by [Aidan Hayes](https://github.com/aphayes2025) and [Harrison Myers](https://github.com/finnmyers96/finnmyers96). 
 
 ## Setup and running [api.py](https://github.com/aphayes2025/workflow-processing-planet-labs/blob/main/api.py)
 
