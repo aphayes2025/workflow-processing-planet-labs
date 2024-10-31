@@ -6,6 +6,11 @@ Showcasing a workflow consisting of multiple python scripts to help download ima
 
 The following code was created by [Aidan Hayes](https://github.com/aphayes2025) and [Harrison Myers](https://github.com/finnmyers96/finnmyers96). 
 
+
+## Tutorial
+[Link to video](https://www.youtube.com/watch?v=eyvdM7w7k_c&ab_channel=AidanHayes)
+
+
 ## Setup and running [api.py](https://github.com/aphayes2025/workflow-processing-planet-labs/blob/main/api.py)
 
 1. download requirements via `requirements.txt` for pip installs. 
@@ -17,3 +22,4 @@ The following code was created by [Aidan Hayes](https://github.com/aphayes2025) 
 ## Overview of Helper Scripts
 There are additional scripts to help with processing the satelite imagery. 
 1. First [unzip.py]() contains two functions, unzip_file() unzips a file (one of the format that planet labs packages their orders in) and rewrite_files() (which takes the unzipped file and looks for a specific subset of the order, like .tif images or .json files and puts them in a new folder.
+
